@@ -4,7 +4,12 @@ from flask import Flask, jsonify
 app = Flask(__name__)
 
 
-@app.route('/mydata')
+@app.route("/")
+def hello_world():
+    return "<div><h1>Minimal Api </h1><p>Api data is on /api</p></div>"
+
+
+@app.route('/api')
 def mydata():
     data = [
         {'name': 'John', 'age': 30, 'city': 'New York'},
