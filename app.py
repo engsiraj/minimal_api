@@ -1,78 +1,82 @@
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+import sqlite3
 
 
 app = Flask(__name__)
+CORS(app)
 
-
-
-data = {
-    1: {'id':1,'name': 'John', 'age': 30, 'city': 'New York'},
-    2: {'id':2,'name': 'Emily', 'age': 25, 'city': 'Los Angeles'},
-    3: {'id':3,'name': 'Michael', 'age': 45, 'city': 'Chicago'},
-    4: {'id':4,'name': 'Sarah', 'age': 33, 'city': 'Houston'},
-    5: {'id':5,'name': 'Daniel', 'age': 28, 'city': 'San Francisco'},
-    6: {'id':6,'name': 'Jessica', 'age': 36, 'city': 'Miami'},
-    7: {'id':7,'name': 'Andrew', 'age': 42, 'city': 'Seattle'},
-    8: {'id':8,'name': 'Olivia', 'age': 31, 'city': 'Boston'},
-    9: {'id':9,'name': 'David', 'age': 37, 'city': 'Atlanta'},
-    10: {'id':10,'name': 'Sophia', 'age': 29, 'city': 'Denver'},
-    }
+def db_con():
+    conn =None
+    try:
+        conn = sqlite3.connect('todo.sqlite')
+    except sqlite3.Error as e:
+        print(e)
+    return conn
 
 @app.route("/")
 def hello_world():
     return "<div><h1>this is other Api </h1><p>Api data is on /users and /user/id</p></div>"
 
-@app.route('/users',methods=['GET','POST'])
-def users_list():
-
+@app.route('/todos',methods=['GET','POST'])
+def task_list():
+    conn = db_con()
+    cursor = conn.cursor()
     if request.method == 'GET':
-        if len(data) > 0:
-            return jsonify(data)
-        else:
-            return 'not found', 404
-        
+        cursor = conn.execute("SELECT * FROM Todo")
+        tasks = [
+        dict(id=row[0], title=row[2],task=row[2])
+        for row in cursor.fetchall()
+        ]
+        if tasks is not None:
+            return jsonify(tasks),200
+   
+ 
     if request.method == 'POST':
-        user_data = request.json
-        if not user_data:
-            return Response('invalid data',status=400)
+       new_title = request.form["title"]
+       new_task = request.form["task"]
+       sql = '''INSERT INTO Todo (title,task) VALUES(?,?)'''
+       cursor = cursor.execute(sql,(new_title, new_task))
+       conn.commit()
+       return  f"{cursor.lastrowid} added"
+     
+@app.route('/todo/<int:id>',methods=['GET','PUT','DELETE'])
+def todo(id):
+    conn = db_con()
+    cursor = conn.cursor()
+    todo =None
+    if request.method == 'GET':
+        cursor.execute(' SELECT * FROM Todo Where id=?',(id,))
+        rows = cursor.fetchall()
+        for r in rows:
+            todo = r
+        if todo is not None:
+            return jsonify(todo)
         else:
-            new_user_id = max(data.keys())+1
-            user_data['id'] = new_user_id
-            data[new_user_id] = user_data
-            return jsonify(user_data,201)
+            return jsonify({'error': 'Not found'}), 404
         
-@app.route('/user/<int:id>',methods=['GET','PUT','DELETE'])
-def user(id):
-    if request.method =='GET':
-       user = data.get(id)
-       if user:
-           return jsonify(user),200
-       else:
-           return Response('user not found', status=404)
-       
-    elif request.method =='PUT':
-       user = data.get(id)
-       if not user:
-           return Response('user not found',status=404)
-       else:
-           other = request.json
-           user.update(other)
-           return jsonify(other),200
-       
-    elif request.method =='DELETE':
-       user = data.pop(id,None)
-       if  user:
-           return Response('user deleted',status=200)
-       else:
-           return Response('user deleted',status=200)
-       
+    if request.method == 'PUT':
+        sql = '''UPDATE Todo SET title=?,task=? WHERE id=?'''
+        title = request.form["title"]
+        task = request.form["task"]
+        new_todo = {
+            'id':id,
+            'title':title,
+            'task':task
+        }
+        cursor = cursor.execute(sql,(title, task,id))
+        conn.commit()
+        return jsonify(new_todo)
 
-
-
-
-
-
-
+    if request.method =='DELETE':
+        sql = '''DELETE FROM Todo Where id=?'''
+        cursor = cursor.execute(sql,(id,))
+        conn.commit()
+        return f"{id} has been deleted"
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+# .venv\Scripts\activate
