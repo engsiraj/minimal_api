@@ -18,61 +18,72 @@ def db_con():
 def hello_world():
     return "<div><h1>this is other Api </h1><p>Api data is on /users and /user/id</p></div>"
 
-@app.route('/todos',methods=['GET','POST'])
+@app.route('/todos',methods=['GET','POST','OPTIONS'])
 def task_list():
     conn = db_con()
     cursor = conn.cursor()
+
     if request.method == 'GET':
         cursor = conn.execute("SELECT * FROM Todo")
         tasks = [
-        dict(id=row[0], title=row[2],task=row[2])
+        dict(id=row[0], title=row[1],task=row[2])
         for row in cursor.fetchall()
         ]
         if tasks is not None:
             return jsonify(tasks),200
    
- 
     if request.method == 'POST':
-       new_title = request.form["title"]
-       new_task = request.form["task"]
-       sql = '''INSERT INTO Todo (title,task) VALUES(?,?)'''
-       cursor = cursor.execute(sql,(new_title, new_task))
-       conn.commit()
-       return  f"{cursor.lastrowid} added"
+        data = request.get_json()
+        app.logger.info(data)
+        title = data["title"]
+        task = data["task"]
+        sql = 'INSERT INTO Todo (title,task) VALUES( ?,? )'
+        cursor = cursor.execute(sql,(title, task))
+        conn.commit()
+        return jsonify({'Added': f'{cursor.lastrowid}'}),200
+    
+    if request.method == "OPTIONS":
+        response = app.make_response("")
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"  
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"  
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"  
+        return response
      
+
 @app.route('/todo/<int:id>',methods=['GET','PUT','DELETE'])
 def todo(id):
     conn = db_con()
     cursor = conn.cursor()
     todo =None
+
     if request.method == 'GET':
-        cursor.execute(' SELECT * FROM Todo Where id=?',(id,))
+        cursor.execute('SELECT * FROM Todo Where id=?',(id,))
         rows = cursor.fetchall()
         for r in rows:
             todo = r
         if todo is not None:
-            return jsonify(todo)
+            return jsonify(todo) ,200
         else:
             return jsonify({'error': 'Not found'}), 404
         
     if request.method == 'PUT':
-        sql = '''UPDATE Todo SET title=?,task=? WHERE id=?'''
-        title = request.form["title"]
-        task = request.form["task"]
-        new_todo = {
-            'id':id,
-            'title':title,
-            'task':task
-        }
-        cursor = cursor.execute(sql,(title, task,id))
-        conn.commit()
-        return jsonify(new_todo)
+        try:
+            data = request.get_json()
+            title = data['title']
+            task = data['task']
+            sql = 'UPDATE Todo SET title=?, task=? WHERE id=?'
+            cursor.execute(sql, (title, task, id))
+            conn.commit()
+            return jsonify({'updated': f'{id}'}), 200
+        except sqlite3.Error as err:
+            print(f"Error updating data: {err}")
+            return jsonify({'error': 'Database error'}), 500
 
     if request.method =='DELETE':
-        sql = '''DELETE FROM Todo Where id=?'''
+        sql = 'DELETE FROM Todo Where id=?'
         cursor = cursor.execute(sql,(id,))
         conn.commit()
-        return f"{id} has been deleted"
+        return f"{id} has been deleted",200
 
 if __name__ == '__main__':
     app.run(debug=True)
@@ -80,3 +91,4 @@ if __name__ == '__main__':
 
 
 # .venv\Scripts\activate
+#  app.logger.info(data)
